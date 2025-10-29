@@ -1,0 +1,44 @@
+name: Alpha
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Next Release Version'
+        required: true
+        type: string
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Get Version
+        id: get_version
+        run: |
+          echo "dll_version=${{ inputs.version }}.${{ github.run_number }}" >> $GITHUB_OUTPUT
+          echo "version=${{ inputs.version }}-alpha.${{ github.run_number }}" >> $GITHUB_OUTPUT
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: |
+          dotnet build --configuration Release --no-restore \
+            /p:Version=${{ steps.get_version.outputs.dll_version }} \
+            /p:AssemblyVersion=${{ steps.get_version.outputs.dll_version }} \
+            /p:FileVersion=${{ steps.get_version.outputs.dll_version }}
+
+      - name: Pack
+        run: dotnet pack --configuration Release --no-build -o ./artifacts /p:PackageVersion=${{ steps.get_version.outputs.version }}
+
+      - name: Publish
+        run: dotnet nuget push "artifacts/*.nupkg" --api-key ${{ secrets.NUGET_KEY }} --source https://api.nuget.org/v3/index.json
